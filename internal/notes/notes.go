@@ -72,3 +72,28 @@ func Append(path, line string) error {
 	}
 	return Write(path, cur+line+"\n")
 }
+
+// Action is the decision for an observed on-disk change.
+type Action int
+
+const (
+	// Ignore means the change is our own write echoing back — do nothing.
+	Ignore Action = iota
+	// Reload means load the disk version into a clean buffer.
+	Reload
+	// Flag means there are unsaved local edits — surface a "changed on
+	// disk" indicator but do not overwrite.
+	Flag
+)
+
+// Classify decides what to do when the file changes on disk. lastWritten is
+// the content the editor believes is on disk (last saved or loaded).
+func Classify(diskContent, lastWritten string, dirty bool) Action {
+	if diskContent == lastWritten {
+		return Ignore
+	}
+	if dirty {
+		return Flag
+	}
+	return Reload
+}

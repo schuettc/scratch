@@ -94,3 +94,25 @@ func TestAppendAddsSeparatingNewline(t *testing.T) {
 		t.Fatalf("Append() = %q, want %q", got, "existing\nnext\n")
 	}
 }
+
+func TestClassify(t *testing.T) {
+	cases := []struct {
+		name        string
+		disk, last  string
+		dirty       bool
+		want        Action
+	}{
+		{"self-write echo ignored", "abc", "abc", false, Ignore},
+		{"self-write echo ignored even if dirty", "abc", "abc", true, Ignore},
+		{"external change while clean reloads", "new", "old", false, Reload},
+		{"external change while dirty flags", "new", "old", true, Flag},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := Classify(c.disk, c.last, c.dirty); got != c.want {
+				t.Fatalf("Classify(%q,%q,%v) = %v, want %v",
+					c.disk, c.last, c.dirty, got, c.want)
+			}
+		})
+	}
+}
