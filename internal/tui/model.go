@@ -49,6 +49,7 @@ type Model struct {
 	saveErr     string
 	gen         int  // debounce generation
 	saving      bool // a write is currently in flight
+	quitting    bool // ctrl+q/esc pressed; quit once the latest content is flushed
 }
 
 // New builds a model with the file's current contents loaded.
@@ -117,7 +118,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+q", "esc":
-			return m, tea.Sequence(m.saveNow(), tea.Quit)
+			m.quitting = true
+			if m.saving {
+				// A write is already in flight; quit once it (and any drain of
+				// newer content) completes, so we never start a second racing
+				// write that could land stale and lose the latest edits.
+				return m, nil
+			}
+			if m.dirty {
+				nm, cmd := m.triggerSave()
+				return nm, cmd
+			}
+			return m, tea.Quit
 		case "ctrl+s":
 			nm, cmd := m.triggerSave()
 			return nm, cmd
@@ -153,15 +165,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.saving = false
 		if msg.err != nil {
 			m.saveErr = msg.err.Error()
+			if m.quitting {
+				// Don't trap the user if the file cannot be written.
+				return m, tea.Quit
+			}
 			return m, nil
 		}
 		m.saveErr = ""
 		m.lastWritten = msg.content
 		m.dirty = m.textarea.Value() != msg.content
+		// Our write is now the on-disk content, so any prior "changed on disk"
+		// flag no longer applies. Clearing it here also suppresses the spurious
+		// flag a self-write's fsnotify echo could raise before this savedMsg.
+		m.diskChanged = false
 		if m.dirty {
 			// Buffer changed while this save was in flight — drain the latest.
 			nm, cmd := m.triggerSave()
 			return nm, cmd
+		}
+		if m.quitting {
+			return m, tea.Quit
 		}
 		return m, nil
 

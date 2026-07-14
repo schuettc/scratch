@@ -28,7 +28,13 @@ func watchCmd(w *fsnotify.Watcher, path string) tea.Cmd {
 				if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Rename) == 0 {
 					continue
 				}
-				content, _ := notes.Read(path)
+				content, err := notes.Read(path)
+				if err != nil {
+					// A genuine read error (not a missing file, which notes.Read
+					// treats as empty): don't blank the buffer with empty content —
+					// keep waiting for a subsequent, readable change.
+					continue
+				}
 				return DiskChangeMsg{Content: content}
 			case _, ok := <-w.Errors:
 				if !ok {
