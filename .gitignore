@@ -1,0 +1,6 @@
+# SDD scratch (progress ledger, local settings)
+.superpowers/
+.claude/settings.local.json
+
+# scratch binary
+/scratch
