@@ -682,7 +682,6 @@ Create `internal/tui/model.go`:
 package tui
 
 import (
-	"fmt"
 	"path/filepath"
 	"time"
 
@@ -862,16 +861,12 @@ func (m Model) View() string {
 
 	return lipgloss.JoinVertical(lipgloss.Left, header, m.textarea.View(), footer)
 }
-
-var _ = fmt.Sprintf // retained for future footer formatting
 ```
-
-Note: the `var _ = fmt.Sprintf` line keeps the `fmt` import if you trim the footer; if `fmt` is otherwise used, delete that line and the import. Run `go vet` to confirm imports are clean before committing.
 
 - [ ] **Step 5: Run tests to verify they pass**
 
 Run: `go test ./internal/tui/`
-Expected: PASS (4 tests). If `fmt` is unused, remove the import and the `var _ = fmt.Sprintf` line, then re-run.
+Expected: PASS (4 tests). Run `go vet ./internal/tui/` to confirm imports are clean.
 
 - [ ] **Step 6: Commit**
 
