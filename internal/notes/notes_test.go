@@ -69,3 +69,28 @@ func TestWriteRenameFailureKeepsTemp(t *testing.T) {
 		t.Fatalf("error %q should name the kept temp file %q", err.Error(), tmps[0])
 	}
 }
+
+func TestAppendToMissingCreates(t *testing.T) {
+	p := filepath.Join(t.TempDir(), ".scratch.md")
+	if err := Append(p, "first"); err != nil {
+		t.Fatalf("Append() error = %v", err)
+	}
+	got, _ := Read(p)
+	if got != "first\n" {
+		t.Fatalf("Append() = %q, want %q", got, "first\n")
+	}
+}
+
+func TestAppendAddsSeparatingNewline(t *testing.T) {
+	p := filepath.Join(t.TempDir(), ".scratch.md")
+	if err := Write(p, "existing"); err != nil { // no trailing newline
+		t.Fatalf("Write() error = %v", err)
+	}
+	if err := Append(p, "next"); err != nil {
+		t.Fatalf("Append() error = %v", err)
+	}
+	got, _ := Read(p)
+	if got != "existing\nnext\n" {
+		t.Fatalf("Append() = %q, want %q", got, "existing\nnext\n")
+	}
+}

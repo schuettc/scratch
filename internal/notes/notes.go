@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Path returns the scratchpad file path for a given working directory.
@@ -57,4 +58,17 @@ func Write(path, content string) error {
 		return fmt.Errorf("rename %s to %s (temp kept): %w", tmpName, path, err)
 	}
 	return nil
+}
+
+// Append atomically adds line (with a trailing newline) to the file,
+// inserting a separating newline if the existing content lacks one.
+func Append(path, line string) error {
+	cur, err := Read(path)
+	if err != nil {
+		return err
+	}
+	if cur != "" && !strings.HasSuffix(cur, "\n") {
+		cur += "\n"
+	}
+	return Write(path, cur+line+"\n")
 }
