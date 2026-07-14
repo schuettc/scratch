@@ -6,15 +6,14 @@ import (
 	"os"
 
 	"github.com/schuettc/scratch/internal/notes"
+	"github.com/schuettc/scratch/internal/tui"
 )
 
 func run(cwd string, args []string, stdout io.Writer) int {
 	path := notes.Path(cwd)
 
 	if len(args) == 0 {
-		// Replaced in Task 7 with: return tui.Run(path)
-		fmt.Fprintln(stdout, "TUI not wired yet")
-		return 0
+		return tui.Run(path)
 	}
 
 	switch args[0] {
