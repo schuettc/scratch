@@ -1,7 +1,9 @@
 package notes
 
 import (
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -42,5 +44,28 @@ func TestWriteReadRoundTrip(t *testing.T) {
 	tmps, _ := filepath.Glob(filepath.Join(dir, ".scratch-*.tmp"))
 	if len(tmps) != 0 {
 		t.Fatalf("leftover temp files: %v", tmps)
+	}
+}
+
+func TestWriteRenameFailureKeepsTemp(t *testing.T) {
+	dir := t.TempDir()
+	// Make the target path itself an existing directory so os.Rename onto
+	// it fails, forcing the rename-failure branch.
+	target := filepath.Join(dir, ".scratch.md")
+	if err := os.Mkdir(target, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	err := Write(target, "content")
+	if err == nil {
+		t.Fatal("Write() to a directory path should fail on rename")
+	}
+	// The temp file must be kept (not cleaned up) so no content is lost.
+	tmps, _ := filepath.Glob(filepath.Join(dir, ".scratch-*.tmp"))
+	if len(tmps) != 1 {
+		t.Fatalf("rename failure should keep exactly 1 temp file, found %d: %v", len(tmps), tmps)
+	}
+	// The kept temp file's path must appear in the error message.
+	if !strings.Contains(err.Error(), tmps[0]) {
+		t.Fatalf("error %q should name the kept temp file %q", err.Error(), tmps[0])
 	}
 }
