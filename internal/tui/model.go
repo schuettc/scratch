@@ -18,12 +18,19 @@ var (
 	colGreen    = lipgloss.Color("#a6e3a1")
 	colRed      = lipgloss.Color("#f38ba8")
 	colSubtext0 = lipgloss.Color("#a6adc8")
+	colText     = lipgloss.Color("#cdd6f4")
+	colSurface1 = lipgloss.Color("#45475a")
 
-	headerStyle = lipgloss.NewStyle().Foreground(colMauve).Bold(true)
-	cleanStyle  = lipgloss.NewStyle().Foreground(colSubtext0)
-	dirtyStyle  = lipgloss.NewStyle().Foreground(colGreen)
+	// Title bar (a small filled bar): "scratch · <workspace> ●".
+	titleLabelStyle = lipgloss.NewStyle().Background(colSurface1).Foreground(colMauve).Bold(true)
+	titleInfoStyle  = lipgloss.NewStyle().Background(colSurface1).Foreground(colText)
+	titleDotClean   = lipgloss.NewStyle().Background(colSurface1).Foreground(colSubtext0)
+	titleDotDirty   = lipgloss.NewStyle().Background(colSurface1).Foreground(colGreen)
+	titleBarStyle   = lipgloss.NewStyle().Background(colSurface1)
+
+	// Status line (data, not command hints).
+	statusStyle = lipgloss.NewStyle().Foreground(colSubtext0)
 	flagStyle   = lipgloss.NewStyle().Foreground(colRed)
-	footerStyle = lipgloss.NewStyle().Foreground(colSubtext0)
 	errStyle    = lipgloss.NewStyle().Foreground(colRed)
 )
 
@@ -47,9 +54,11 @@ type Model struct {
 	dirty       bool
 	diskChanged bool
 	saveErr     string
-	gen         int  // debounce generation
-	saving      bool // a write is currently in flight
-	quitting    bool // ctrl+q/esc pressed; quit once the latest content is flushed
+	gen         int       // debounce generation
+	saving      bool      // a write is currently in flight
+	quitting    bool      // ctrl+q/esc pressed; quit once the latest content is flushed
+	width       int       // last known terminal width (for the title bar)
+	savedAt     time.Time // time of the last successful save (zero = never)
 }
 
 // New builds a model with the file's current contents loaded.
@@ -57,7 +66,6 @@ func New(path string) Model {
 	content, _ := notes.Read(path)
 
 	ta := textarea.New()
-	ta.Placeholder = "notes…"
 	ta.ShowLineNumbers = false
 	ta.Prompt = ""
 	ta.CharLimit = 0
@@ -107,8 +115,9 @@ func (m Model) triggerSave() (Model, tea.Cmd) {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		m.width = msg.Width
 		m.textarea.SetWidth(msg.Width)
-		h := msg.Height - 2 // header + footer
+		h := msg.Height - 2 // title bar + status line
 		if h < 1 {
 			h = 1
 		}
@@ -173,6 +182,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.saveErr = ""
 		m.lastWritten = msg.content
+		m.savedAt = time.Now()
 		m.dirty = m.textarea.Value() != msg.content
 		// Our write is now the on-disk content, so any prior "changed on disk"
 		// flag no longer applies. Clearing it here also suppresses the spurious
@@ -210,19 +220,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) View() string {
 	name := filepath.Base(filepath.Dir(m.path))
 
-	dot := cleanStyle.Render("○")
+	// Title bar: "scratch · <workspace> ●" on a small filled bar.
+	dot := titleDotClean.Render("○")
 	if m.dirty {
-		dot = dirtyStyle.Render("●")
+		dot = titleDotDirty.Render("●")
 	}
-	header := headerStyle.Render(name) + " " + dot
-	if m.diskChanged {
-		header += "  " + flagStyle.Render("● changed on disk (ctrl+r to reload)")
+	title := titleLabelStyle.Render(" scratch ") +
+		titleInfoStyle.Render("· "+name+" ") + dot
+	width := m.width
+	if width < lipgloss.Width(title) {
+		width = lipgloss.Width(title)
+	}
+	titleBar := titleBarStyle.Width(width).Render(title)
+
+	// Status line: data, not command hints.
+	var status string
+	switch {
+	case m.saveErr != "":
+		status = errStyle.Render("save error: " + m.saveErr)
+	case m.diskChanged:
+		status = flagStyle.Render("● changed on disk")
+	case !m.savedAt.IsZero():
+		status = statusStyle.Render("saved " + m.savedAt.Format("15:04"))
+	default:
+		status = statusStyle.Render("not saved yet")
 	}
 
-	footer := footerStyle.Render("ctrl+s save · ctrl+r reload · ctrl+q quit")
-	if m.saveErr != "" {
-		footer = errStyle.Render("save error: " + m.saveErr)
-	}
-
-	return lipgloss.JoinVertical(lipgloss.Left, header, m.textarea.View(), footer)
+	return lipgloss.JoinVertical(lipgloss.Left, titleBar, m.textarea.View(), status)
 }

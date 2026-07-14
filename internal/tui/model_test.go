@@ -2,6 +2,7 @@ package tui
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -234,5 +235,34 @@ func TestCtrlRReloadsFromDiskWhenFlagged(t *testing.T) {
 	}
 	if m.lastWritten != "external-edit" {
 		t.Fatalf("ctrl+r should update lastWritten, got %q", m.lastWritten)
+	}
+}
+
+func TestViewChrome(t *testing.T) {
+	p := filepath.Join(t.TempDir(), ".scratch.md")
+	m := New(p)
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 40, Height: 12})
+	m = next.(Model)
+
+	v := m.View()
+	if !strings.Contains(v, "scratch") {
+		t.Fatalf("title bar should name the pane 'scratch', got:\n%s", v)
+	}
+	if !strings.Contains(v, "not saved yet") {
+		t.Fatalf("empty status should read 'not saved yet', got:\n%s", v)
+	}
+	if strings.Contains(v, "notes…") {
+		t.Fatal("the 'notes…' placeholder should be gone")
+	}
+	if strings.Contains(v, "ctrl+s") || strings.Contains(v, "ctrl+r") {
+		t.Fatal("command hints should be gone from the chrome")
+	}
+
+	// After a successful save the status shows a saved-at time (HH:MM).
+	next, _ = m.Update(savedMsg{content: ""})
+	m = next.(Model)
+	v = m.View()
+	if !strings.Contains(v, "saved ") {
+		t.Fatalf("status should show 'saved <time>' after a save, got:\n%s", v)
 	}
 }
