@@ -47,7 +47,8 @@ type Model struct {
 	dirty       bool
 	diskChanged bool
 	saveErr     string
-	gen         int // debounce generation
+	gen         int  // debounce generation
+	saving      bool // a write is currently in flight
 }
 
 // New builds a model with the file's current contents loaded.
@@ -88,6 +89,20 @@ func (m Model) saveNow() tea.Cmd {
 	}
 }
 
+// triggerSave issues an atomic write of the current buffer, but only if no
+// write is already in flight. Serializing writes this way prevents two
+// concurrent notes.Write calls from racing on the same file — a stale one
+// could otherwise land last and clobber newer content. When the in-flight
+// write completes (savedMsg), the buffer is re-checked and another save is
+// issued if it changed meanwhile, so the latest content converges to disk.
+func (m Model) triggerSave() (Model, tea.Cmd) {
+	if m.saving {
+		return m, nil
+	}
+	m.saving = true
+	return m, m.saveNow()
+}
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -104,7 +119,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+q", "esc":
 			return m, tea.Sequence(m.saveNow(), tea.Quit)
 		case "ctrl+s":
-			return m, m.saveNow()
+			nm, cmd := m.triggerSave()
+			return nm, cmd
 		case "ctrl+r":
 			if m.diskChanged {
 				content, _ := notes.Read(m.path)
@@ -128,11 +144,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case saveMsg:
 		if msg.gen == m.gen && m.dirty {
-			return m, m.saveNow()
+			nm, cmd := m.triggerSave()
+			return nm, cmd
 		}
 		return m, nil
 
 	case savedMsg:
+		m.saving = false
 		if msg.err != nil {
 			m.saveErr = msg.err.Error()
 			return m, nil
@@ -140,6 +158,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.saveErr = ""
 		m.lastWritten = msg.content
 		m.dirty = m.textarea.Value() != msg.content
+		if m.dirty {
+			// Buffer changed while this save was in flight — drain the latest.
+			nm, cmd := m.triggerSave()
+			return nm, cmd
+		}
 		return m, nil
 
 	case DiskChangeMsg:

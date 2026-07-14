@@ -74,3 +74,49 @@ func TestDiskChangeWhileDirtyFlags(t *testing.T) {
 		t.Fatalf("dirty disk change must not clobber, got %q", m.textarea.Value())
 	}
 }
+
+func TestOverlappingSavesSerializeAndDrainLatest(t *testing.T) {
+	p := filepath.Join(t.TempDir(), ".scratch.md")
+	m := New(p)
+
+	// Type "a" and start a save via ctrl+s.
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	m = next.(Model)
+	next, saveCmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
+	m = next.(Model)
+	if !m.saving {
+		t.Fatal("ctrl+s should mark a save in flight")
+	}
+
+	// While that save is in flight, type "b" (buffer becomes "ab").
+	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})
+	m = next.(Model)
+
+	// A debounce tick for the new content must NOT start a second concurrent
+	// save while one is already in flight.
+	next, tickCmd := m.Update(saveMsg{gen: m.gen})
+	m = next.(Model)
+	if tickCmd != nil {
+		t.Fatal("no second save should be issued while one is in flight")
+	}
+
+	// The first save completes, having written the older content "a".
+	saved := saveCmd()
+	if _, ok := saved.(savedMsg); !ok {
+		t.Fatalf("expected savedMsg, got %T", saved)
+	}
+	next, drainCmd := m.Update(saved)
+	m = next.(Model)
+
+	// Completion must drain: because the buffer changed to "ab" during the
+	// in-flight save, a follow-up save is issued for the latest content.
+	if drainCmd == nil {
+		t.Fatal("completion should drain the newer content with a follow-up save")
+	}
+	drainCmd() // executes the follow-up write
+
+	got, _ := notes.Read(p)
+	if got != "ab" {
+		t.Fatalf("disk should converge to latest content, got %q, want %q", got, "ab")
+	}
+}
