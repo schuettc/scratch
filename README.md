@@ -19,7 +19,7 @@ scratch append "…" # atomically append a line (for hooks/scripts)
 scratch path       # print the resolved file path
 ```
 
-Keys: type to edit · `ctrl+s` save · `ctrl+r` reload from disk · `ctrl+q`/`esc` quit.
+Keys: type to edit · `ctrl+s` save · `ctrl+r` reload from disk · `ctrl+x` clear (asks `y/n`) · `ctrl+q`/`esc` quit.
 Autosave runs ~500ms after you stop typing, on quit, and on `ctrl+s`.
 
 ## Manual smoke checklist

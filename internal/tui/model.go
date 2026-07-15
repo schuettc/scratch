@@ -59,6 +59,8 @@ type Model struct {
 	quitting    bool      // ctrl+q/esc pressed; quit once the latest content is flushed
 	width       int       // last known terminal width (for the title bar)
 	savedAt     time.Time // time of the last successful save (zero = never)
+
+	confirmingClear bool // ctrl+x armed a "clear all? y/n" confirmation
 }
 
 // New builds a model with the file's current contents loaded.
@@ -125,6 +127,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// A pending "clear all?" confirmation consumes the next keypress:
+		// "y" wipes the buffer (and saves), anything else cancels.
+		if m.confirmingClear {
+			m.confirmingClear = false
+			if msg.String() == "y" {
+				m.textarea.SetValue("")
+				m.dirty = true
+				m.gen++
+				nm, cmd := m.triggerSave()
+				return nm, cmd
+			}
+			return m, nil
+		}
 		switch msg.String() {
 		case "ctrl+q", "esc":
 			m.quitting = true
@@ -150,6 +165,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.dirty = false
 				m.diskChanged = false
 			}
+			return m, nil
+		case "ctrl+x":
+			// Arm a confirmation; the next keypress decides (see above).
+			m.confirmingClear = true
 			return m, nil
 		}
 		before := m.textarea.Value()
@@ -236,6 +255,8 @@ func (m Model) View() string {
 	// Status line: data, not command hints.
 	var status string
 	switch {
+	case m.confirmingClear:
+		status = flagStyle.Render("clear all? y/n")
 	case m.saveErr != "":
 		status = errStyle.Render("save error: " + m.saveErr)
 	case m.diskChanged:

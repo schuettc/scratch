@@ -266,3 +266,51 @@ func TestViewChrome(t *testing.T) {
 		t.Fatalf("status should show 'saved <time>' after a save, got:\n%s", v)
 	}
 }
+
+func TestClearWithConfirm(t *testing.T) {
+	p := filepath.Join(t.TempDir(), ".scratch.md")
+	if err := notes.Write(p, "keep me"); err != nil {
+		t.Fatal(err)
+	}
+	m := New(p) // buffer "keep me"
+
+	// ctrl+x arms the confirmation but does NOT wipe yet.
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlX})
+	m = next.(Model)
+	if !m.confirmingClear {
+		t.Fatal("ctrl+x should arm the clear confirmation")
+	}
+	if m.textarea.Value() != "keep me" {
+		t.Fatal("arming must not wipe the buffer")
+	}
+	if !strings.Contains(m.View(), "clear all?") {
+		t.Fatalf("status line should show the confirm prompt, got:\n%s", m.View())
+	}
+
+	// A non-'y' key cancels; content survives.
+	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	m = next.(Model)
+	if m.confirmingClear {
+		t.Fatal("a non-'y' key should cancel the confirmation")
+	}
+	if m.textarea.Value() != "keep me" {
+		t.Fatalf("cancel must keep content, got %q", m.textarea.Value())
+	}
+
+	// Re-arm and confirm with 'y' → wipes the buffer and saves empty to disk.
+	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlX})
+	m = next.(Model)
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	m = next.(Model)
+	if m.textarea.Value() != "" {
+		t.Fatalf("'y' should clear the buffer, got %q", m.textarea.Value())
+	}
+	if cmd == nil {
+		t.Fatal("clearing should trigger a save")
+	}
+	cmd() // execute the write
+	got, _ := notes.Read(p)
+	if got != "" {
+		t.Fatalf("cleared file should be empty on disk, got %q", got)
+	}
+}
