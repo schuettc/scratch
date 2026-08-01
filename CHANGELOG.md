@@ -6,6 +6,16 @@ All notable changes to `scratch` are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- The editor now **follows the agent session**. It re-resolves its pad once a
+  second, so a TUI that started before the agent did — the usual case, since the
+  workspace builder opens the scratch pane and the agent's pane together — moves
+  onto the session's pad as soon as a `SessionStart` hook stamps the
+  `@harness_session` tmux option. Unsaved edits are flushed to the previous pad
+  first, so notes stay with the conversation they were typed in.
+- The title bar shows the pad's own key instead of its parent directory, which
+  is now `pads` for every pad and identified nothing.
+
 ### Changed
 - **Breaking:** pads are now stored per user, outside the working tree, keyed by
   the coding-agent session instead of the directory. The store is

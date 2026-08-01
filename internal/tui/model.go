@@ -2,6 +2,7 @@ package tui
 
 import (
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/textarea"
@@ -47,6 +48,18 @@ type savedMsg struct {
 type Model struct {
 	// WatchCmd re-subscribes the fsnotify watcher; set by Run. Nil-safe.
 	WatchCmd tea.Cmd
+	// Resolve reports which pad should be on screen right now. It is polled
+	// because the pad is keyed by the coding-agent session, and the editor
+	// normally starts before that session has stamped its identity. Nil
+	// disables following: the editor stays on the pad it opened with.
+	Resolve func() string
+	// AddDir extends the watcher to a newly-adopted pad's directory; set by
+	// Run. Nil-safe.
+	AddDir func(path string) tea.Cmd
+
+	// pathRef mirrors path for the watcher goroutine, which cannot observe
+	// updates to a field on a value-copied model.
+	pathRef *pathBox
 
 	path        string
 	textarea    textarea.Model
@@ -76,13 +89,15 @@ func New(path string) Model {
 
 	return Model{
 		path:        path,
+		pathRef:     newPathBox(path),
 		textarea:    ta,
 		lastWritten: content,
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return m.WatchCmd // may be nil (e.g. watcher unavailable)
+	// WatchCmd may be nil (watcher unavailable); Batch tolerates that.
+	return tea.Batch(m.WatchCmd, followTick())
 }
 
 func (m Model) scheduleSave() tea.Cmd {
@@ -229,6 +244,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case notes.Ignore:
 		}
 		return m, m.WatchCmd // re-subscribe (nil-safe)
+
+	case followTickMsg:
+		// Never switch mid-confirmation: the pending ctrl+x y/n refers to the
+		// pad currently on screen.
+		if m.Resolve == nil || m.confirmingClear {
+			return m, followTick()
+		}
+		var cmd tea.Cmd
+		m, cmd = m.switchTo(m.Resolve())
+		return m, tea.Batch(cmd, followTick())
 	}
 
 	var cmd tea.Cmd
@@ -237,7 +262,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	name := filepath.Base(filepath.Dir(m.path))
+	// The pad's own name, not its directory: every pad now lives in one
+	// store directory, so the enclosing folder is the same ("pads") for all
+	// of them and identifies nothing. Session keys are UUIDs — the leading
+	// block is enough to tell two pads apart on screen.
+	name := strings.TrimSuffix(filepath.Base(m.path), ".md")
+	if i := strings.IndexByte(name, '-'); i >= 4 {
+		name = name[:i]
+	}
 
 	// Title bar: "scratch · <workspace> ●" on a small filled bar.
 	dot := titleDotClean.Render("○")
