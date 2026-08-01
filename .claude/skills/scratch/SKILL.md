@@ -1,12 +1,13 @@
 ---
 name: scratch
-description: Explains the scratch codebase — a fast, per-worktree markdown scratchpad TUI (Go / Bubble Tea). Use when working in, extending, debugging, or trying to understand THIS repository: its architecture (the notes file layer, the Bubble Tea model, the fsnotify watcher), the non-obvious design decisions (atomic writes, the Classify reload decision, serialized autosave, the terminal-probe focus dance, directory-watching), where the design specs live, and how to build / test / run / release.
+description: Explains the scratch codebase — a fast markdown scratchpad TUI scoped to a coding-agent session (Go / Bubble Tea). Use when working in, extending, debugging, or trying to understand THIS repository: its architecture (the notes file layer, pad path resolution, the Bubble Tea model, the fsnotify watcher), the non-obvious design decisions (session-keyed pad storage, atomic writes, the Classify reload decision, serialized autosave, the terminal-probe focus dance, directory-watching), where the design specs live, and how to build / test / run / release.
 ---
 
 # Understanding scratch
 
-`scratch` is a small, keyboard-first terminal UI that edits **one markdown file per
-working directory** — `$PWD/.scratch.md`. The file on disk is the single source of
+`scratch` is a small, keyboard-first terminal UI that edits **one markdown pad per
+coding-agent session**, stored per user outside any repository (resolution lives in
+`internal/notes/locate.go`). The file on disk is the single source of
 truth; the TUI is a window onto it. It autosaves, reloads external edits
 non-destructively, and never leaves a half-written file. Built on the Charm stack
 (Bubble Tea, Bubbles, Lipgloss) plus fsnotify.
@@ -35,7 +36,11 @@ docs/superpowers/plans/     the task-by-task build plans
 ### `internal/notes` — the file layer (start here)
 Pure functions, fully unit-tested, no TUI dependency. This is where correctness lives.
 
-- `Path(cwd) → cwd/.scratch.md`.
+- `Path(cwd) → (padPath, error)` — resolution lives in `locate.go`, keyed by the
+  agent session (`$CLAUDE_CODE_SESSION_ID`, else the `@harness_session` tmux
+  option) and falling back to a flattened `cwd`. It returns an **error** rather
+  than a path inside `cwd` when the store location is undiscoverable: writing a
+  pad into the working tree is the outcome the store exists to prevent.
 - `Read(path) → (string, error)`. A **missing file is not an error** — it returns
   `("", nil)`. Only real I/O errors (permissions, etc.) return non-nil.
 - `Write(path, content)` — **atomic**: write a temp file *in the same directory* →
@@ -100,7 +105,7 @@ type to edit · `ctrl+s` save · `ctrl+r` reload from disk · `ctrl+x` clear (`y
 go build ./...            # compile
 go test ./...             # unit tests (notes = pure logic; tui = drives Update())
 go vet ./...              # keep clean before committing
-go run .                  # run the TUI in the current dir (edits ./.scratch.md)
+go run .                  # run the TUI on this session's pad (see `scratch path`)
 go install github.com/schuettc/scratch@latest   # install the published binary
 ```
 

@@ -10,7 +10,11 @@ import (
 )
 
 func run(cwd string, args []string, stdout io.Writer) int {
-	path := notes.Path(cwd)
+	path, err := notes.Path(cwd)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
 
 	if len(args) == 0 {
 		return tui.Run(path)

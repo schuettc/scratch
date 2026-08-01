@@ -7,11 +7,27 @@ import (
 	"testing"
 )
 
+// Path's derivation is covered in locate_test.go against an injected
+// environment. This only pins the exported entry point: it honors the
+// explicit override and never returns a path inside the working directory.
 func TestPath(t *testing.T) {
-	got := Path("/tmp/work")
-	want := filepath.Join("/tmp/work", ".scratch.md")
-	if got != want {
-		t.Fatalf("Path() = %q, want %q", got, want)
+	t.Setenv(EnvFile, "/tmp/pinned-pad.md")
+	got, err := Path("/tmp/work")
+	if err != nil {
+		t.Fatalf("Path() error = %v", err)
+	}
+	if got != "/tmp/pinned-pad.md" {
+		t.Fatalf("Path() = %q, want the pinned file", got)
+	}
+
+	t.Setenv(EnvFile, "")
+	t.Setenv(EnvDir, t.TempDir())
+	got, err = Path("/tmp/work")
+	if err != nil {
+		t.Fatalf("Path() error = %v", err)
+	}
+	if strings.HasPrefix(got, "/tmp/work") {
+		t.Fatalf("Path() = %q, want it outside the working directory", got)
 	}
 }
 
@@ -97,10 +113,10 @@ func TestAppendAddsSeparatingNewline(t *testing.T) {
 
 func TestClassify(t *testing.T) {
 	cases := []struct {
-		name        string
-		disk, last  string
-		dirty       bool
-		want        Action
+		name       string
+		disk, last string
+		dirty      bool
+		want       Action
 	}{
 		{"self-write echo ignored", "abc", "abc", false, Ignore},
 		{"self-write echo ignored even if dirty", "abc", "abc", true, Ignore},
