@@ -6,6 +6,26 @@ All notable changes to `scratch` are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- **Breaking:** pads are now stored per user, outside the working tree, keyed by
+  the coding-agent session instead of the directory. The store is
+  `os.UserConfigDir()/scratch/pads/<key>.md` — `~/Library/Application Support`
+  on macOS, `$XDG_CONFIG_HOME` or `~/.config` on Linux, `%AppData%` on Windows.
+  The key is the agent session id (from `$CLAUDE_CODE_SESSION_ID`, or the
+  `@harness_session` tmux option for a TUI running in a sibling pane), falling
+  back to a flattened working directory when no agent session is visible.
+
+  Two sessions open in one checkout used to share a single `$PWD/.scratch.md`
+  and overwrite each other; they now get separate pads. A resumed session keeps
+  its id and so reopens its own pad from any pane or worktree. Nothing is
+  written into the working tree any more, so repositories no longer need to
+  ignore `.scratch.md`.
+
+  Existing `$PWD/.scratch.md` files are **not** migrated or read — move anything
+  worth keeping by hand.
+
+### Added
+- `$SCRATCH_FILE` pins the exact pad file; `$SCRATCH_DIR` relocates the store.
 - Added a Claude Code explainer skill (`.claude/skills/scratch/`), this changelog,
   and a GitHub Pages site.
 

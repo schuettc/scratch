@@ -10,10 +10,8 @@ import (
 	"strings"
 )
 
-// Path returns the scratchpad file path for a given working directory.
-func Path(cwd string) string {
-	return filepath.Join(cwd, ".scratch.md")
-}
+// Path resolution — which pad file this invocation uses — lives in
+// locate.go.
 
 // Read returns the file contents. A missing file is not an error: it
 // returns ("", nil).
@@ -34,6 +32,11 @@ func Read(path string) (string, error) {
 // reported so no content is lost.
 func Write(path, content string) error {
 	dir := filepath.Dir(path)
+	// The store is created on first write rather than at resolution time, so
+	// merely asking where a pad lives never leaves a directory behind.
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
 	tmp, err := os.CreateTemp(dir, ".scratch-*.tmp")
 	if err != nil {
 		return err
