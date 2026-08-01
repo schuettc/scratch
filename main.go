@@ -17,7 +17,13 @@ func run(cwd string, args []string, stdout io.Writer) int {
 	}
 
 	if len(args) == 0 {
-		return tui.Run(path)
+		return tui.Run(path, func() string {
+			p, err := notes.Path(cwd)
+			if err != nil {
+				return ""
+			}
+			return p
+		})
 	}
 
 	switch args[0] {
