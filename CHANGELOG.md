@@ -4,7 +4,7 @@ All notable changes to `scratch` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.2.0] — 2026-08-07
 
 ### Added
 - The editor now **follows the agent session**. It re-resolves its pad once a
@@ -70,7 +70,7 @@ All notable changes to `scratch` are documented here. The format follows
 - CLI subcommands: `scratch` (TUI), `scratch print`, `scratch append <text>`,
   `scratch path`.
 
-[Unreleased]: https://github.com/schuettc/scratch/compare/v0.1.2...HEAD
+[0.2.0]: https://github.com/schuettc/scratch/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/schuettc/scratch/releases/tag/v0.1.2
 [0.1.1]: https://github.com/schuettc/scratch/releases/tag/v0.1.1
 [0.1.0]: https://github.com/schuettc/scratch/releases/tag/v0.1.0
