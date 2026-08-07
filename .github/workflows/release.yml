@@ -2,10 +2,12 @@ name: release
 
 # Every push to main IS a release — there is no knob to forget. The workflow
 # runs the tests, computes the next version from the latest v* tag (patch by
-# default; put "#minor" or "#major" in the head commit message to bump those),
-# and publishes a GitHub release, which creates the tag. `go install
-# github.com/schuettc/scratch@latest` resolves the highest semver tag, so
-# consumers get the new code as soon as the release lands.
+# default; put "#minor" or "#major" in the head commit's SUBJECT line to bump
+# those — the body is deliberately ignored, since prose that merely mentions a
+# token must not trigger it), and publishes a GitHub release, which creates
+# the tag. `go install github.com/schuettc/scratch@latest` resolves the
+# highest semver tag, so consumers get the new code as soon as the release
+# lands.
 #
 # A push whose HEAD is already tagged (a re-run, or a tag pushed by hand)
 # releases nothing.
@@ -41,7 +43,7 @@ jobs:
           latest="$(git tag -l 'v*' --sort=-v:refname | head -1)"
           latest="${latest:-v0.0.0}"
           IFS=. read -r major minor patch <<< "${latest#v}"
-          msg="$(git log -1 --pretty=%B)"
+          msg="$(git log -1 --pretty=%s)"
           case "$msg" in
             *"#major"*) tag="v$((major + 1)).0.0" ;;
             *"#minor"*) tag="v${major}.$((minor + 1)).0" ;;
